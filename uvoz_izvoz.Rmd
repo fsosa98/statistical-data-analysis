@@ -1,0 +1,526 @@
+---
+title: "SAPiens"
+author: "Antonio Filipović, Patrik Okanović, Filip Sosa"
+date: "2.5.2020."
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: Uloga izvoza i uvoza u gospodarstvu
+---
+# Uvod
+Uvoz i izvoz dva su važna čimbenika gospodarskog rasta i ekonomske stabilnosti država. Izvozom novac ”ulazi“ u državu, dok uvozom on ”izlazi“. Shodno tome države većinom potiču izvoz kako bi povisile svoj standard. Cilj je ovoga projekta istražiti veze između uvoza, izvoza, odnosno rasta uvoza i izvoza s BDP-om  analizirajući i uspoređujući istovremeno tri odabrane države: Luksemburg, Meskisko i Japan. Odabirom zemalja namjerno smo pokušali dobiti podatke što različitijih gospodarstava, ne bi li time usporedba bila zanimljivija. 
+
+# Učitavanje podataka
+Učitani su podaci uvoza i izvoza po državama na godišnjoj razini u milijunima US dolara za razdoblje od 1979. do 2019. godine. Izvor podataka jest stranica: https://data.oecd.org/trade/trade-in-goods-and-services.htm
+
+U nastavku slijedi učitavanje podataka o uvozu, izvozu, BDP-u te BDP per capita za odabrane zemlje: Japan, Luksemburg te Meksiko.
+```{r load data}
+df = read.table("trade/GDP_data.csv", sep = ",", header = TRUE)
+df.percapita = read.table("trade/GDPpercapita_data.csv",
+                          sep = ",",
+                          header = TRUE)
+df.export = read.table("trade/Export_data.csv", sep = ",", header = TRUE)
+df.import = read.table("trade/Import_data.csv", sep = ",", header = TRUE)
+
+lux_GDP = df[df$LOCATION == "LUX", c("FREQUENCY", "TIME", "Value")]
+lux_GDP_percapita = df.percapita[df.percapita$LOCATION == "LUX", 
+                                 c("FREQUENCY", "TIME", "Value")]
+lux_GDP_percapita$Value = lux_GDP_percapita$Value / 1000000
+lux_export = df.export[df.export$LOCATION == "LUX",
+                       c("FREQUENCY", "TIME", "Value")]
+lux_import = df.import[df.import$LOCATION == "LUX", 
+                       c("FREQUENCY", "TIME", "Value")]
+
+mex_GDP = df[df$LOCATION == "MEX", c("FREQUENCY", "TIME", "Value")]
+mex_GDP_percapita = df.percapita[df.percapita$LOCATION == "MEX", 
+                                 c("FREQUENCY", "TIME", "Value")]
+mex_GDP_percapita$Value = mex_GDP_percapita$Value / 1000000
+mex_export = df.export[df.export$LOCATION == "MEX",
+                       c("FREQUENCY", "TIME", "Value")]
+mex_import = df.import[df.import$LOCATION == "MEX", 
+                       c("FREQUENCY", "TIME", "Value")]
+
+jpn_GDP = df[df$LOCATION == "JPN", c("FREQUENCY", "TIME", "Value")]
+jpn_GDP_percapita = df.percapita[df.percapita$LOCATION == "JPN",
+                                 c("FREQUENCY", "TIME", "Value")]
+jpn_GDP_percapita$Value = jpn_GDP_percapita$Value / 1000000
+jpn_export = df.export[df.export$LOCATION == "JPN",
+                       c("FREQUENCY", "TIME", "Value")]
+jpn_import = df.import[df.import$LOCATION == "JPN",
+                       c("FREQUENCY", "TIME", "Value")]
+
+growth_lux_GDP = diff(lux_GDP$Value) / head(as.vector(lux_GDP['Value']),-1)
+growth_mex_GDP = diff(mex_GDP$Value) / head(as.vector(mex_GDP['Value']),-1)
+growth_jpn_GDP = diff(jpn_GDP$Value) / head(as.vector(jpn_GDP['Value']),-1)
+
+growth_lux_GDP_percapita = diff(lux_GDP_percapita$Value) /
+  head(as.vector(lux_GDP_percapita['Value']),-1)
+growth_mex_GDP_percapita = diff(mex_GDP_percapita$Value) /
+  head(as.vector(mex_GDP_percapita['Value']),-1)
+growth_jpn_GDP_percapita = diff(jpn_GDP_percapita$Value) /
+  head(as.vector(jpn_GDP_percapita['Value']),-1)
+
+growth_lux_import = diff(lux_import$Value) / head(as.vector(lux_import['Value']),-1)
+growth_mex_import = diff(mex_import$Value) / head(as.vector(mex_import['Value']),-1)
+growth_jpn_import = diff(jpn_import$Value) / head(as.vector(jpn_import['Value']),-1)
+
+growth_lux_export = diff(lux_export$Value) / head(as.vector(lux_export['Value']),-1)
+growth_mex_export = diff(mex_export$Value) / head(as.vector(mex_export['Value']),-1)
+growth_jpn_export = diff(jpn_export$Value) / head(as.vector(jpn_export['Value']),-1)
+
+lux_GDP_dataframe = data.frame(GDP = lux_GDP$Value,
+                               EXPORT = lux_export$Value,
+                               IMPORT = lux_import$Value)
+mex_GDP_dataframe = data.frame(GDP = mex_GDP$Value,
+                               EXPORT = mex_export$Value,
+                               IMPORT = mex_import$Value)
+jpn_GDP_dataframe = data.frame(GDP = jpn_GDP$Value,
+                               EXPORT = jpn_export$Value,
+                               IMPORT = jpn_import$Value)
+
+```
+
+Metodom summary() dan je pregled učitanih podataka kako provođenja testova i donošenje zaključaka bilo što intuitivnije, nakon kratkog pogleda na učitane vrijednosti.
+```{r}
+summary(lux_GDP)
+summary(mex_GDP)
+summary(jpn_GDP)
+
+summary(lux_GDP_percapita)
+summary(mex_GDP_percapita)
+summary(jpn_GDP_percapita)
+
+summary(lux_export)
+summary(mex_export)
+summary(jpn_export)
+
+summary(lux_import)
+summary(mex_import)
+summary(jpn_import)
+```
+Sljedeći dio grafički prikazuje podatke koji se obrađuju u nastavku. Prikazani su grafovi BDP u ovisnosti o godinama za svaku zemlju zasebno. S obzirom na veliku razliku u godišnjem BDP-u među državama, podatke nije pregledno promatrati na istome grafu. Međutim korisno je promotriti istovremeno boxplot dijagrame zemalja za godišnji rast BDP-a. Iz njega su istovremeno vidljive i stršeče vrijednosti goidšnjeg rasta BDP-a za svaku zemlju.
+\newline
+```{r}
+par(mfrow = c(2, 2))
+plot(
+  lux_GDP$TIME,
+  lux_GDP$Value,
+  main = 'Luksemburg BDP',
+  xlab = 'Vrijeme',
+  ylab = 'USD milijuni'
+)
+
+plot(
+  mex_GDP$TIME,
+  mex_GDP$Value,
+  main = 'Meksiko BDP',
+  xlab = 'Vrijeme',
+  ylab = 'USD milijuni'
+)
+
+plot(
+  jpn_GDP$TIME,
+  jpn_GDP$Value,
+  main = 'Japan BDP',
+  xlab = 'Vrijeme',
+  ylab = 'USD milijuni'
+)
+par(mfrow = c(1, 1))
+
+par(mfrow = c(1, 3))
+boxplot(lux_GDP$Value, main = 'Luksemburg BDP',
+        ylab = 'USD milijuni')
+
+boxplot(mex_GDP$Value, main = 'Meksiko BDP',
+        ylab = 'USD milijuni')
+
+boxplot(jpn_GDP$Value, main = 'Japan BDP',
+        ylab = 'USD milijuni')
+par(mfrow = c(1, 1))
+
+```
+Sljedećim grafovima prikazani su podaci o BDP-u po stanovniku za svaku zemlju, te su prikazani boxplot dijagrami za rast BDP-a per capita za svaku odabranu zemlju.
+```{r}
+plot(
+        lux_GDP_percapita$TIME,
+        lux_GDP_percapita$Value,
+        main = 'BDP po stanovniku',
+        xlab = 'Vrijeme',
+        ylab = 'USD milijuni',
+        col = "red"
+)
+points(mex_GDP_percapita$TIME, mex_GDP_percapita$Value, col = "green")
+points(jpn_GDP_percapita$TIME, jpn_GDP_percapita$Value, col = "blue")
+legend(
+        1980,
+        0.11,
+        legend = c("Luksemburg", "Meksiko", "Japan"),
+        fill = c("red", "green", "blue")
+)
+
+boxplot(
+        lux_GDP_percapita$Value,
+        mex_GDP_percapita$Value,
+        jpn_GDP_percapita$Value,
+        main = 'GDP po stanovniku',
+        ylab = 'USD milijuni',
+        names = c("Luksemburg", "Meksiko", "Japan")
+)
+
+boxplot(
+        growth_lux_GDP_percapita$Value,
+        growth_mex_GDP_percapita$Value,
+        growth_jpn_GDP_percapita$Value,
+        main = 'Rast GDP-a po stanovniku',
+        ylab = 'USD milijuni',
+        names = c("Luksemburg", "Meksiko", "Japan")
+)
+```
+\newpage
+# Provjera normalnosti podataka
+Prije nego li se u radu počne odgovarati na pitanja koristeći statističke testove potrebno je obaviti provjeru normalnosti podataka. Pretpostavkom normalnosti podataka moguće je koristit parametarsku statistiku te testove s većom snagom testa, nasuprot neparametarskim testovima s manjom snagom testa.
+```{r}
+par(mfrow = c(2, 2))
+hist(
+        growth_lux_export$Value,
+        main = 'Lukesemburg - rast izvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(
+        growth_lux_import$Value,
+        main = 'Lukesemburg - rast uvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(growth_lux_GDP$Value,
+     main = 'Lukesemburg - rast BDP-a',
+     xlab = 'Stopa rasta',
+     ylab = 'Ferkvencija')
+hist(
+        growth_lux_GDP_percapita$Value,
+        main = 'Lukesemburg - rast BDP-a po stanovniku',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+
+hist(
+        growth_mex_export$Value,
+        main = 'Meksiko - rast izvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(
+        growth_mex_import$Value,
+        main = 'Meksiko - rast uvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(growth_mex_GDP$Value,
+     main = 'Meksiko - rast BDP-a',
+     xlab = 'Stopa rasta',
+     ylab = 'Ferkvencija')
+hist(
+        growth_mex_GDP_percapita$Value,
+        main = 'Meksiko - rast BDP-a po stanovniku',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+
+hist(
+        growth_jpn_export$Value,
+        main = 'Japan - rast izvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(
+        growth_jpn_import$Value,
+        main = 'Japan - rast uvoza',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+hist(growth_jpn_GDP$Value,
+     main = 'Japan - rast BDP-a',
+     xlab = 'Stopa rasta',
+     ylab = 'Ferkvencija')
+
+hist(
+        growth_jpn_GDP_percapita$Value,
+        main = 'Japan - rast BDP-a po stanovniku',
+        xlab = 'Stopa rasta',
+        ylab = 'Ferkvencija'
+)
+```
+
+\newpage
+# Linearna regresija
+Koristeći linearnu regresiju kao moćni alat, provjerava se veza između BDP-a te uvoza i izvoza. Ispituje se normalnost reziduala grafički, koristeći kvantil-kvantil graf te statistički, Kolmogorov-Smirnovljevim testom.\newline
+```{r}
+fit_lux = lm(lux_GDP$Value ~ lux_export$Value + lux_import$Value)
+fit_lux_percapita = lm(lux_GDP_percapita$Value ~ lux_export$Value + lux_import$Value)
+qqnorm(rstandard(fit_lux))
+qqline(rstandard(fit_lux))
+ks.test(rstandard(fit_lux), 'pnorm')
+
+qqnorm(rstandard(fit_lux_percapita))
+qqline(rstandard(fit_lux_percapita))
+ks.test(rstandard(fit_lux_percapita), 'pnorm')
+summary(fit_lux)
+summary(fit_lux_percapita)
+
+dat_lux_growth = data.frame(
+  BDP_GROWTH = growth_lux_GDP$Value,
+  EXPORT = growth_lux_export$Value,
+  IMPORT = growth_lux_import$Value
+)
+fit_lux_growth = lm(BDP_GROWTH ~ EXPORT + IMPORT, data = dat_lux_growth)
+
+
+qqnorm(rstandard(fit_lux_growth))
+qqline(rstandard(fit_lux_growth))
+ks.test(rstandard(fit_lux_growth), 'pnorm')
+
+summary(fit_lux_growth)
+```
+Zadovoljena je normalnost reziduala. Ovisnost BDP o uvozu i izvozu je potvrđena, koeficijenit uz sve članove potvrđeni su kao značajni. Točnije rečeno za svaku je koeficijent odbačena nulta hipoteza da taj koeficijent iznosi 0. Danim testovima vidljivije je iz koeficijent determinacije R^2, da uvoz i izvoz bolje modeliraju BDP po stanovniku. Na primjeru Luksemburga promatrana je ovisnost rasta BDP-a o rastu izvoza i rastu uvoza. Koeficijent determinacije značajno je manji od prethodno promatranih modela, to jest znatno manja varijabilnost je objašnjena ovim modelom. Iz čega slijedi da ime više smisla promatrati modele BDP-a, a ne rasta BDP-a. Na primjeru Luksemburga pokazano da nije korisno modelirati linearnog regresijom BDP o rastu izvoza i uvoza, kao jedini značajni koeficijent t-testom pokazuje se interakcijski član.
+
+
+
+```{r}
+#dataframe
+jpn_growth_dataframe = data.frame(
+        GDP_GROWTH = growth_jpn_GDP$Value,
+        EXPORT = growth_jpn_export$Value,
+        IMPORT = growth_jpn_import$Value
+)
+
+fit_jpn = lm(jpn_GDP$Value ~ jpn_export$Value + jpn_import$Value)
+fit_jpn_percapita = lm(jpn_GDP_percapita$Value ~ jpn_export$Value + jpn_import$Value)
+
+qqnorm(rstandard(fit_jpn))
+qqline(rstandard(fit_jpn))
+ks.test(rstandard(fit_jpn), 'pnorm')
+
+qqnorm(rstandard(fit_jpn_percapita))
+qqline(rstandard(fit_jpn_percapita))
+ks.test(rstandard(fit_jpn_percapita), 'pnorm')
+summary(fit_jpn)
+summary(fit_jpn_percapita)
+```
+Kao i u prethodnome primjeru zadovoljena je normalnost reziduala oba promatrana  modela. Međutim, za razliku od modela Luksemburga kod Japana je koeficijent modela uz varijablu izvoza neznačajan, kao i njihova interakcija. Kod modela gdje se ispituje kako BDP per capita ovisi o uvozu i izvozu, značajan je jedino koeficijent u varijablu uvoza i interakcijski član uvoza i izvoza. 
+
+```{r}
+
+fit_jpn_only_import = lm(jpn_GDP_percapita$Value~jpn_import$Value)
+ks.test(rstandard(fit_jpn_only_import),'pnorm')
+summary(fit_jpn_only_import)
+```
+Prethodno je napravljen model gospodarstva Japana o značajnim varijablama, to jest uvozu.
+
+```{r}
+fit_mex = lm(mex_GDP$Value ~ mex_export$Value + mex_import$Value)
+fit_mex_percapita = lm(mex_GDP_percapita$Value ~ mex_export$Value + mex_import$Value)
+
+qqnorm(rstandard(fit_mex))
+qqline(rstandard(fit_mex))
+ks.test(rstandard(fit_mex), 'pnorm')
+
+qqnorm(rstandard(fit_mex_percapita))
+qqline(rstandard(fit_mex_percapita))
+ks.test(rstandard(fit_mex_percapita), 'pnorm')
+summary(fit_mex)
+summary(fit_mex_percapita)
+```
+
+Prilikom izrade modela BDP-a Meksika o uvozu i izvozu zanimljivo je primjetiti da hipotezu da je koeficijent uz varijablu uvoza jednak 0 nije moguće odbaciti uz nivo signifikantnosti od 25%. Oba promatrana modela su jednako dobra gledajući R^2, uz malu prednost prema modelu koji promatra BDP po stanovniku.
+U nastavku je dan model bez uvoza za Meksiko.
+
+```{r}
+dat_mex = data.frame(GDP = mex_GDP_percapita$Value,
+                     EXPORT = mex_export$Value,
+                     IMPORT = mex_import$Value)
+fit_mex_only_export = lm(GDP ~ . - IMPORT, data = dat_mex)
+ks.test(rstandard(fit_mex_only_export), 'pnorm')
+summary(fit_mex_only_export)
+```
+
+
+
+
+
+\newpage
+
+## Promatranje transformiranih varijabli
+
+Unatoč velikom prostoru mogućnosti transformiranih varijabli, promatrana je transformacija logaritmiranjem.
+```{r}
+lux_log = lm(GDP ~ log(EXPORT) + log(IMPORT) , data = lux_GDP_dataframe)
+summary(lux_log)
+
+mex_log = lm(GDP ~ log(EXPORT) + log(IMPORT) , data = mex_GDP_dataframe)
+summary(mex_log)
+
+jpn_log = lm(GDP ~ log(EXPORT) + log(IMPORT) , data = jpn_GDP_dataframe)
+summary(jpn_log)
+```
+Promatranjem transformiranih modela vidljivo je da su logaritmirani modeli Meksika i Luksemburga lošiji. Imaju manji koeficijent determinacije, a nema razlike u testiranju značajnosti koeficijenata. Nasuprot tome,model Japana s logaritmiranim varijablama je bolji od netransformiranog modela.
+
+\newpage
+# Usporedba prosječnog rasta gospodarstva država
+
+Kako bismo ispitali razlikuje li se prosječni rast gospodarstva neke države u odnosu na prosječni rast gospodarstva neke druge države koristili smo analizu varijanci, ANOVA-u. Njezina je pretpostavka nezavisnost i normalna distribuiranost podataka te homogenost varijanci među populacijama. Kako bismo provjerili homogenost varijanci među populacijama koristimo Bartletov test.
+```{r}
+
+
+data_growth_gdp = c(growth_jpn_GDP$Value,
+                    growth_lux_GDP$Value,
+                    growth_mex_GDP$Value)
+tmp = factor(rep(c('Japan', 'Luksemburg', 'Meksiko'), c(39, 39, 39)))
+
+boxplot(data_growth_gdp ~ tmp,
+        main = "Rast BDP-a",
+        ylab = "Stopa rasta",
+        xlab = "")
+
+bartlett.test(data_growth_gdp ~ tmp)
+
+# ANOVA
+model = lm(data_growth_gdp ~ tmp)
+anova(model)
+#bartlett.test(dat$TIME, dat$VALUE.Value)
+
+t.test(growth_lux_GDP,
+       growth_mex_GDP,
+       alt = "greater",
+       var.equal = TRUE)
+t.test(growth_lux_GDP,
+       growth_jpn_GDP,
+       alt = "greater",
+       var.equal = TRUE)
+t.test(growth_mex_GDP,
+       growth_jpn_GDP,
+       alt = "two.sided",
+       var.equal = TRUE)
+```
+Iz dobivenih rezultata Bartletovog testa možemo zaključiti da su varijance jednake, no prosječni rast gospodarstva nije jednak. Pravokutni dijagram bi dao naslutiti da je rast gospodarstva Meksika i Luksemburga veći od rasta gospodarstva Japana. Uz nivo signifikatnosti od 5% možemo odbaciti hipotezu da je rast BDP-a Luksemburga jednak Meksiku u korist hipoteze da je rast BDP-a Luksemburga veći od Meksika. Jednako tako možemo zaključiti da je rast BDP-a veći od rasta Japana. Dok uz nivo signifikantnosti od 20% ne možemo odbaciti hipotezu da je rast BDP-a različit od rasta BDP-a Meksika.
+\newpage
+# Usporedba prosječnog rasta uvoza i izvoza
+
+Koristeći dvostrani t-test kao snažni alat provjeravali smo je li prosječni rast izvoza veći od prosječnog rasta uvoza neke države. Kao jedan od parametara t-testu trebamo postaviti jesu li varijance prosječnog rasta uvoza i izvoza jednake. Tu provjeru izvršili smo metodom var.test()
+```{r}
+var.test(growth_lux_import$Value, growth_lux_export$Value)
+var.test(growth_mex_import$Value, growth_mex_export$Value)
+var.test(growth_jpn_import$Value, growth_jpn_export$Value)
+
+t.test(growth_lux_import,
+       growth_lux_export,
+       alt = "two.sided",
+       var.equal = TRUE)
+t.test(growth_mex_import,
+       growth_mex_export,
+       alt = "two.sided",
+       var.equal = FALSE)
+t.test(growth_jpn_import,
+       growth_jpn_export,
+       alt = "two.sided",
+       var.equal = TRUE)
+```
+Iz rezultata vidimo da vrijednosti varijanci nisu jednake kod Meksika. Također rast uvoza nije značajno veći od rasta izvoza niti kod Meksika, Luksemburga niti Japana, iz čega bi mogli protumačiti da te države i dalje granice održavaju otvorenim za uvoz, razvijajući pri tome gospodarstvo izvozom.
+
+\newpage
+# Ispitivanje stršećih vrijednosti rasta izvoza
+
+Stršeće su vrijednosti (eng. outliers) one koje bitno odudaraju od većine vrijednosti podataka. Jedan od načina detekcije stršećih vrijednosti je prikazom podataka pravokutnim dijagramom. Sve vrijednosti koje su veće od gornjeg ili manje od donjeg izdanka su stršeće. U nastavku su prikazana tri pravokutna dijagrama godišnjeg rasta izvoza. 
+```{r}
+plot(
+  lux_GDP$TIME,
+  mex_export$Value,
+  main = 'Izvoz',
+  xlab = 'Vrijeme',
+  ylab = 'USD milijuni',
+  col = "green"
+)
+
+points(lux_GDP$TIME, lux_export$Value, col = "red")
+points(lux_GDP$TIME, jpn_export$Value, col = "blue")
+legend(
+        1980,
+        8e+05,
+        legend = c("Luksemburg", "Meksiko", "Japan"),
+        fill = c("red", "green", "blue")
+)
+
+boxplot(
+  growth_lux_export$Value,
+  growth_mex_export$Value,
+  growth_jpn_export$Value,
+  main = 'Rast izvoza',
+  ylab = 'Stopa rasta',
+  names = c("Luksemburg", "Meksiko", "Japan")
+)
+```
+Na pravokutnim dijagramima može se uočiti da sve tri zemlje imaju jednu stršeću vrijednost ispod donjeg izdanka. Ta vrijednost posljedica je svjetske financijske krize 2008. godine. Nakon tog pada države su se opravile te se dogodio nagli rast izvoza Japana i Meskiska. Taj nagli rast prikazan je kao stršeća vrijednost iznad gornjeg izdanka na dijagramu. Uz te dvije vrijednosti Meksiko ima još stršećih vrijednosti zbog visoke stope kriminala te nestabilnosti ekonomije.
+
+\newpage
+# Usporedba rasta BDP-a te rasta BDP-a po stanovniku
+
+Koristeći dvostrani t-test ispituje se značajnost razlike prosječnog rasta BDP-a i prosječnog rasta BDP-a po stanovniku. Prije t-testa potrebno je napraviti test jednakosti varijanci.  
+```{r}
+
+var.test(growth_lux_GDP_percapita$Value,
+         growth_mex_GDP_percapita$Value)
+var.test(growth_lux_GDP_percapita$Value,
+         growth_jpn_GDP_percapita$Value)
+var.test(growth_mex_GDP_percapita$Value,
+         growth_jpn_GDP_percapita$Value)
+
+
+t.test(growth_lux_GDP$Value,
+       growth_lux_GDP_percapita$Value,
+       paired = TRUE,
+       alt = "two.sided",
+       var.equal = TRUE)
+t.test(growth_mex_GDP$Value,
+       growth_mex_GDP_percapita$Value,
+       paired = TRUE,
+       alt = "two.sided",
+       var.equal = TRUE)
+t.test(growth_jpn_GDP$Value,
+       growth_jpn_GDP_percapita$Value,
+       paired = TRUE,
+       alt = "two.sided",
+       var.equal = TRUE)
+
+
+wilcox.test(
+        growth_lux_GDP$Value,
+        growth_lux_GDP_percapita$Value,
+        paired = TRUE,
+        alternative = "two.sided"
+)
+wilcox.test(
+        growth_mex_GDP$Value,
+        growth_mex_GDP_percapita$Value,
+        paired = TRUE,
+        alternative = "two.sided"
+)
+wilcox.test(
+        growth_jpn_GDP$Value,
+        growth_jpn_GDP_percapita$Value,
+        paired = TRUE,
+        alternative = "two.sided"
+)
+
+```
+Testiranjem jednakosti varijanci utvrđeno je da razlika varijanci nije statistički značajna. Testiranjem jednakosti srednjih vrijednosti rasta BDP-a i rasta BDP-a po stanovniku utvrđeno je da se srednje vrijednosti razlikuju značajno.
+Iako je je pokazana normalnost podataka, jednakost rasta BDP-a i rasta BDP-a po stanovniku provjerena je neparametarskim testom. Neparametarski test ima manju snagu testa, te je njime donesena jednaka odluka u svim slučajevima osim kod Meksika. Oba zaključka slijedi iz p-vrijednosti koji je za sve države veći od kritične vrijednosti. 
+
+
+# Zaključak
+U ovom radu pokušali smo provjeriti utjecaj uvoza i izvoza na gospodarstvo odabranih država. Rezultati koje smo dobili pokazuju da se ovisnost ne može generalizirati, već ovisi individualno o svakoj državi.
+
+Statisički značajnije rezultate mogli bismo dobiti da smo imali još veći broj podataka. 
+
+
+
